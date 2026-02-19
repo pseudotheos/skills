@@ -1,0 +1,123 @@
+name:
+remind-me
+description:
+Set reminders using natural language. Automatically creates one-time cron jobs and logs to markdown.
+metadata:
+{"clawdbot":{"emoji":"⏰"}}
+dependencies:
+{"scripts":[],"tools":["cron","exec"]}
+cost:
+~$0.01-0.03/reminder
+cascade_inputs:
+{"required":[],"optional":[]}
+cascade_outputs:
+[]
+Remind Me
+Set reminders via the cron tool. No scripts, no external dependencies.
+
+Triggers
+"Remind me to..."
+"Remind me in..."
+"Remind me next..."
+"Set a reminder for..."
+Any scheduling request
+One-Time Reminders
+Use agentTurn payload with schedule.at (ISO 8601 timestamp). Always delivers to Telegram.
+
+{
+  "action": "add",
+  "job": {
+    "name": "reminder-<slug>",
+    "agentId": "main",
+    "payload": {
+      "kind": "agentTurn",
+      "message": "Reminder for User: <context-rich text>. Reply with ONLY the reminder text (2-3 sentences). Do NOT use message tool or exec to send — your reply auto-delivers to Telegram.",
+      "model": "haiku",
+      "thinking": "off",
+      "deliver": true,
+      "channel": "telegram",
+      "to": "[id goes here]"
+    },
+    "schedule": {
+      "at": "<ISO-8601-with-timezone>"
+    },
+    "sessionTarget": "isolated",
+    "wakeMode": "now",
+    "deleteAfterRun": true
+  }
+}
+Rules:
+
+name: reminder-<descriptive-slug> (kebab-case)
+sessionTarget: isolated (fires independently)
+deleteAfterRun: true (one-shot, clean up after)
+Timezone: [fill in]
+Channel split: Alerts/reminders → Telegram.
+Context rule: Include WHY and surrounding context, not just the bare task. The reminder fires days later — make it useful without memory.
+Time Mapping
+The agent parses natural language to ISO 8601 directly:
+
+Input	Maps to
+"in 2 hours"	now + 2h
+"later today"	today 17:00
+"tonight"	today 20:00
+"tomorrow"	tomorrow 09:00
+"tomorrow at 3pm"	tomorrow 15:00
+"next Monday"	next Monday 09:00
+"next Monday at 2pm"	next Monday 14:00
+"January 15"	Jan 15 09:00
+"Feb 4 at 10am"	2026-02-04T10:00:00-06:00
+Recurring Reminders
+Use agentTurn payload with cron schedule expression. Delivers via Telegram.
+
+{
+  "action": "add",
+  "job": {
+    "name": "recurring-<slug>",
+    "payload": {
+      "kind": "agentTurn",
+      "message": "Reminder for User: <text>. Reply with ONLY the reminder text (2-3 sentences). Do NOT use message tool or exec to send — your reply auto-delivers to Telegram.",
+      "model": "haiku",
+      "thinking": "off",
+      "deliver": true,
+      "channel": "telegram",
+      "to": "id goes here"
+    },
+    "schedule": {
+      "kind": "cron",
+      "expr": "<cron-expression>",
+      "tz": "tz goes here"
+    },
+    "sessionTarget": "isolated",
+    "wakeMode": "now"
+  }
+}
+Rules:
+
+sessionTarget: isolated (fires independently, delivers to Telegram)
+model: haiku (cheap — it's just delivering a message)
+Standard 5-field cron: minute hour day month weekday
+Cron Expression Quick Ref
+Schedule	Expression
+Every day at 9am	0 9 * * *
+Every Monday at 2pm	0 14 * * 1
+Every weekday at 8am	0 8 * * 1-5
+Every Friday at 5pm	0 17 * * 5
+First of month at 10am	0 10 1 * *
+Managing Reminders
+cron list          → see all jobs (reminders are named reminder-* / recurring-*)
+cron remove <id>   → delete a reminder
+No separate log file. cron list is the source of truth.
+
+Examples
+"Remind me to call the dentist tomorrow at 3pm"
+→ One-time, schedule.at: "2026-02-02T15:00:00-06:00", text includes "call the dentist"
+
+"Remind me next Wednesday to follow up with Bob about the dev proposal"
+→ One-time, next Wednesday 09:00, text includes context about what Bob's proposal was about
+
+"Remind me every Monday at 9am to check Telegram DMs"
+→ Recurring, cron 0 9 * * 1, delivers via Telegram
+
+"Remind me in 2 hours to check the builds"
+→ One-time, now + 2h, agentTurn to Telegram
